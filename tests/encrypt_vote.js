@@ -34,32 +34,52 @@ async function getRandomBigIntAsync(min, max) {
   return bi;
 }
 
-function validate_vote_proof(pk, vote, a, b, r) {
+var pk = generate_pk(secret_key);
+
+function valid_vote_proof(pk, v, a, b, r) {
   let a0, a1, b0, b1, c0, c1, r0, r1;
   let c;
 
-  if(vote === "0") {
-    c1 = await getRandomBigIntAsync(new BigInt('0'), q_prev);
-    r0 = await getRandomBigIntAsync(new BigInt('0'), q_prev);
-    r1 = await getRandomBigIntAsync(new BigInt('0'), q_prev);
+  if (v === 0) {
+    c1 = new BigInteger(random(0, q - 1).toString());
+    r0 = new BigInteger(random(0, q - 1).toString());
+    r1 = new BigInteger(random(0, q - 1).toString());
 
-    a1 = g.modPow(r1, p).multiply(a.modPow(c1.multiply(p.subtract(new BigInteger("2"))), p)).mod(p);
+    a1 = g.modPow(r1, p).multiply(new BigInteger(a).modPow(new BigInteger(c1).multiply(p.subtract(2)), p));//(pow(g, r1, p) * pow(a, c1 * (p - 2), p)) % p;
+    b1 = (pk.modPow(r1, p)).multiply(b.pow(g, p.subtract(2), p).mod(p).modPow(c1.multiply(p.subtract(2), p)));
+    a0 = g.modPow(r0, p);
+    b0 = pk.modPow(r0, p);
+    c = customHash([pk, a, b, a0, b0, a1, b1]);
+    c0 = c1.subtract(c).abs();
+
+    c0 = q.add(c1.subtract(c).mod(q)).mod(q);
+
+    r0 = r0.add(c0.multiply(r).mod(q)).mod(q);
+
+    return [a0, a1, b0, b1, c0, c1, r0, r1];
+  } else if (v === 1) {
+    c0 = new BigInteger(random(0, q - 1).toString());
+    r0 = new BigInteger(random(0, q - 1).toString());
+    r1 = new BigInteger(random(0, q - 1).toString());
+    a0 = g.modPow(r0, p).multiply(a.modPow(c0.multiply(p.subtract(2))), p).mod(p);
+    b0 = pk.modPow(r0, p).multiply(b.modPow(c0.multiply(p.subtract(2))), p).mod(p);
+    a1 = g.modPow(r1, p);
+    b1 = pk.modPow(r1, p);
+    c = customHash([pk, a, b, a0, b0, a1, b1]);
+    c1 = c0.subtract(c).abs()
+    c1 = q.add(c0.subtract(c).mod(q)).mod(q);
+    r1 = r1.add(c1.multiply(r).mod(q)).mod(q);
+    return [a0, a1, b0, b1, c0, c1, r0, r1];
+  } else {
+    return [0, 0, 0, 0, 0, 0, 0, 0];
   }
 }
-
-var pk = generate_pk(secret_key);
 
 function encrypt(vote) {
   // Avoid g=2 because of Bleichenbacher's attack
   var r = await getRandomBigIntAsync(new BigInt('3'), q_prev);
   var a = g.modPow(r, p);
   var b = g.modPow(new BigInteger(vote.toString())).multiply(pk.modPow(r, p)).mod(p);
-}
-
-function encrypt(pk, v) {
-  let r = random(0, q - 1);
-  let a = pow(g, r, p);
-  let b = (pow(g, v, p) * pow(pk, r, p)) % p;
-  let proof = validVoteProof(pk, v, a, b, r);
+  var proof = valid_vote_proof(pk, vote, a, b, r);
   return [a, b, proof];
 }
