@@ -99,19 +99,33 @@ function valid_vote_proof(pk, v, a, b, r) {
 }
 
 async function encrypt(vote) {
-  // Avoid g=2 because of Bleichenbacher's attack
   var r = await getRandomBigIntAsync(new BigInteger("3"), q_prev);
   var a = g.modPow(r, p);
   var b = g
-    .modPow(new BigInteger(vote.toString()))
+    .modPow(new BigInteger(vote.toString()), p)
     .multiply(pk.modPow(r, p))
     .mod(p);
   var proof = valid_vote_proof(pk, vote, a, b, r);
   return [a, b, proof];
 }
 
+function decrypt(sk, a, b) {
+  var ai = a.modPow(sk.multiply(p.subtract(new BigInteger("2"))), p);
+  var gm = b.multiply(ai).mod(p);
+  var m = new BigInteger("0");
+  while (g.modPow(m, p).compareTo(gm) !== 0) {
+    m = m.add(new BigInteger("1"));
+  }
+  return m;
+}
+
 async function main() {
-  console.log(await encrypt(0));
+  encrypted = await encrypt(1);
+  // console.log(encrypted[0].toString());
+  // console.log(encrypted[1].toString());
+
+  decrypted = decrypt(secret_key, encrypted[0], encrypted[1]);
+  console.log(decrypted.toString());
 }
 
 main();
