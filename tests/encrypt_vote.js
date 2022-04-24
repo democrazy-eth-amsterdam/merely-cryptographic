@@ -1,5 +1,5 @@
-import BigInteger from "jsbn";
-import crypto from "crypto";
+const BigInteger = require("jsbn").BigInteger;
+const crypto = require("crypto");
 
 function random(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -24,7 +24,7 @@ async function getRandomBigIntAsync(min, max) {
   let bi;
   do {
     // Generate random bytes with the length of the range
-    const buf = await crypto.randomBytesAsync(Math.ceil(range.bitLength() / 8));
+    const buf = await crypto.randomBytes(Math.ceil(range.bitLength() / 8));
 
     // Offset the result by the minimum value
     bi = new BigInteger(buf.toString("hex"), 16).add(min);
@@ -36,6 +36,18 @@ async function getRandomBigIntAsync(min, max) {
 
 var pk = generate_pk(secret_key);
 
+function customHash(values) {
+  let h = new BigInteger("0");
+  for (let i = 0; i < values.length; i++) {
+    h = h
+      .add(new BigInteger("10").pow(i))
+      .multiply(values[i])
+      .mod(q)
+      .mod(q);
+  }
+  return h;
+}
+
 function valid_vote_proof(pk, v, a, b, r) {
   let a0, a1, b0, b1, c0, c1, r0, r1;
   let c;
@@ -45,8 +57,13 @@ function valid_vote_proof(pk, v, a, b, r) {
     r0 = new BigInteger(random(0, q - 1).toString());
     r1 = new BigInteger(random(0, q - 1).toString());
 
-    a1 = g.modPow(r1, p).multiply(new BigInteger(a).modPow(new BigInteger(c1).multiply(p.subtract(2)), p));//(pow(g, r1, p) * pow(a, c1 * (p - 2), p)) % p;
-    b1 = (pk.modPow(r1, p)).multiply(b.pow(g, p.subtract(2), p).mod(p).modPow(c1.multiply(p.subtract(2), p)));
+    a1 = g.modPow(r1, p).multiply(new BigInteger(a).modPow(new BigInteger(c1).multiply(p.subtract(2)), p)); //(pow(g, r1, p) * pow(a, c1 * (p - 2), p)) % p;
+    b1 = pk.modPow(r1, p).multiply(
+      b
+        .pow(g, p.subtract(2), p)
+        .mod(p)
+        .modPow(c1.multiply(p.subtract(2), p))
+    );
     a0 = g.modPow(r0, p);
     b0 = pk.modPow(r0, p);
     c = customHash([pk, a, b, a0, b0, a1, b1]);
@@ -61,12 +78,18 @@ function valid_vote_proof(pk, v, a, b, r) {
     c0 = new BigInteger(random(0, q - 1).toString());
     r0 = new BigInteger(random(0, q - 1).toString());
     r1 = new BigInteger(random(0, q - 1).toString());
-    a0 = g.modPow(r0, p).multiply(a.modPow(c0.multiply(p.subtract(2))), p).mod(p);
-    b0 = pk.modPow(r0, p).multiply(b.modPow(c0.multiply(p.subtract(2))), p).mod(p);
+    a0 = g
+      .modPow(r0, p)
+      .multiply(a.modPow(c0.multiply(p.subtract(2))), p)
+      .mod(p);
+    b0 = pk
+      .modPow(r0, p)
+      .multiply(b.modPow(c0.multiply(p.subtract(2))), p)
+      .mod(p);
     a1 = g.modPow(r1, p);
     b1 = pk.modPow(r1, p);
     c = customHash([pk, a, b, a0, b0, a1, b1]);
-    c1 = c0.subtract(c).abs()
+    c1 = c0.subtract(c).abs();
     c1 = q.add(c0.subtract(c).mod(q)).mod(q);
     r1 = r1.add(c1.multiply(r).mod(q)).mod(q);
     return [a0, a1, b0, b1, c0, c1, r0, r1];
@@ -75,11 +98,20 @@ function valid_vote_proof(pk, v, a, b, r) {
   }
 }
 
-function encrypt(vote) {
+async function encrypt(vote) {
   // Avoid g=2 because of Bleichenbacher's attack
-  var r = await getRandomBigIntAsync(new BigInt('3'), q_prev);
+  var r = await getRandomBigIntAsync(new BigInteger("3"), q_prev);
   var a = g.modPow(r, p);
-  var b = g.modPow(new BigInteger(vote.toString())).multiply(pk.modPow(r, p)).mod(p);
+  var b = g
+    .modPow(new BigInteger(vote.toString()))
+    .multiply(pk.modPow(r, p))
+    .mod(p);
   var proof = valid_vote_proof(pk, vote, a, b, r);
   return [a, b, proof];
 }
+
+async function main() {
+  console.log(await encrypt(0));
+}
+
+main();
