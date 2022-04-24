@@ -11,8 +11,8 @@ var q_prev = q.subtract(new BigInteger("1"));
 var g = new BigInteger("5");
 
 // ==========================================
-// private parameters
-var secret_key = new BigInteger("2380831451759006579882553120960984113277981577916531573623778541891671800956226624640322916414543030985934711395325938960305715079214976582052109890021687068");
+// private parameters, just for testing!
+var secret_key = new BigInteger("1890613122308636483214615263089879914353133622183312356168367195770925616569283503768300091983802355020338489773460540926699954929058171678498009622408788252");
 function generate_pk(sk) {
   return g.modPow(sk, p);
 }
@@ -119,6 +119,25 @@ function decrypt(sk, a, b) {
   return m;
 }
 
+function verify_vote(pk, a, b, proof) {
+  a0 = proof[0];
+  a1 = proof[1];
+  b0 = proof[2];
+  b1 = proof[3];
+  c0 = proof[4];
+  c1 = proof[5];
+  r0 = proof[6];
+  r1 = proof[7];
+
+  s1 = g.modPow(r0, p).compareTo(a0.multiply(a.modPow(c0, p)).mod(p)) === 0;
+  s2 = g.modPow(r1, p).compareTo(a1.multiply(a.modPow(c1, p)).mod(p)) === 0;
+  s3 = pk.modPow(r0, p).compareTo(b0.multiply(b.modPow(c0, p)).mod(p)) === 0;
+  power_base = b.multiply(g.modPow(p.subtract(new BigInteger("2")), p)).mod(p);
+  s4 = pk.modPow(r1, p).compareTo(b1.multiply(power_base.modPow(c1, p)).mod(p)) === 0;
+
+  return s1 && s2 && s3 && s4;
+}
+
 async function main() {
   encrypted = await encrypt(1);
   // console.log(encrypted[0].toString());
@@ -126,6 +145,10 @@ async function main() {
 
   decrypted = decrypt(secret_key, encrypted[0], encrypted[1]);
   console.log(decrypted.toString());
+
+  proof = verify_vote(pk, encrypted[0], encrypted[1], encrypted[2]);
+
+  console.log(proof);
 }
 
 main();
